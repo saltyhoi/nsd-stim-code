@@ -8,7 +8,7 @@ KbName('UnifyKeyNames');
 %% =========================================================
 prompt = {'Subject ID','Session','Run','Random Seed','Display (1=fMRI,2=behavior)','Eye tracking (1=yes,0=no)'};
 
-default_ans = {'001','1','1',num2str(round(sum(100*clock))),'1','1'};
+default_ans = {'001','1','1',num2str(round(sum(100*clock))),'1','0'};
 
 box = inputdlg(prompt,'Enter subject information',1,default_ans);
 if isempty(box); return; end
@@ -65,9 +65,9 @@ p.dataset = '/imgBrick';
 p.dataDir = fullfile(pwd,'data');
 if ~exist(p.dataDir,'dir'); mkdir(p.dataDir); end
 
-if p.EYE_TRACKING
-     p.et_fn = sprintf('S%03dR%02d',p.SUBJECT,p.RUN);
-end
+% if p.EYE_TRACKING
+%     p.et_fn = sprintf('S%03dR%02d',p.SUBJECT,p.RUN);
+% end
 
 %% =========================================================
 % CHECK FOR EXISTING DATA FILE
@@ -78,9 +78,9 @@ filename = sprintf('sub%03d_sess%02d_run%02d.mat', ...
 
 outfile = fullfile(p.dataDir, filename);
 
-% if p.EYE_TRACKING
-%     p.et_fn = filename;
-% end
+if p.EYE_TRACKING
+    p.et_fn = filename;
+end
 
 if exist(outfile,'file')
 
@@ -138,20 +138,6 @@ p.ntrials = numel(p.KID73);
 if ~exist(p.h5file,'file')
     error('Cannot find stimulus file: %s', p.h5file);
 end
-
-
-
-%% =========================================================
-% ESTIMATED EXPERIMENT DURATION
-%% =========================================================
-p.trialDur = p.stimDur + p.ITI;      % duration of each trial
-p.expt_dur = p.start_wait ...
-           + sum(p.trialDur) ...
-           + p.end_wait;
-fprintf('Estimated run duration: %.2f seconds (%.2f minutes)\n', ...
-        p.expt_dur, p.expt_dur/60);
-    
-    pause;
 
 
 %% =========================================================
@@ -424,7 +410,7 @@ while resp == 0
         return
     end
 end
-fprintf('SPACE pressed: run finished normally\n');
+f f('SPACE pressed: run finished normally\n');
 
 
 %% =========================================================
