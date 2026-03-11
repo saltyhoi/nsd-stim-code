@@ -8,7 +8,7 @@ KbName('UnifyKeyNames');
 %% =========================================================
 prompt = {'Subject ID','Session','Run','Random Seed','Display (1=fMRI,2=behavior)','Eye tracking (1=yes,0=no)'};
 
-default_ans = {'001','1','1',num2str(round(sum(100*clock))),'1','1'};
+default_ans = {'001','1','1',num2str(round(sum(100*clock))),'1','0'};
 
 box = inputdlg(prompt,'Enter subject information',1,default_ans);
 if isempty(box); return; end
@@ -22,10 +22,9 @@ p.RUN     = str2double(strtrim(box{3}));
 p.RNDSEED = str2double(strtrim(box{4}));
 p.DISPLAY = str2double(strtrim(box{5}));
 p.EYE_TRACKING = str2double(strtrim(box{6}));
-p.DEBUG = 0;   % 1 = fast testing, 0 = real experiment
+p.DEBUG = 1;   % 1 = fast testing, 0 = real experiment
 
 rng(p.RNDSEED);
-
 
 %% =========================================================
 % KEYS
@@ -61,8 +60,8 @@ end
 p.h5file = '../nsd_stimuli.hdf5';
 p.dataset = '/imgBrick';
 
-% output folder (optional)
-p.dataDir = fullfile(pwd,'data');
+% output folder
+p.dataDir = fullfile(pwd, '..', '..', 'data', 'nsd_3T_recognition');
 if ~exist(p.dataDir,'dir'); mkdir(p.dataDir); end
 
 if p.EYE_TRACKING
@@ -70,24 +69,26 @@ if p.EYE_TRACKING
 end
 
 %% =========================================================
+% CREATE TIMESTAMP + BASENAME
+%% =========================================================
+
+p.timestamp = datestr(now,'yyyymmdd_HHMMSS');
+
+baseName = sprintf('sub%03d_sess%02d_run%02d', p.SUBJECT, p.SESSION, p.RUN);
+
+%% =========================================================
 % CHECK FOR EXISTING DATA FILE
 %% =========================================================
 
-filename = sprintf('sub%03d_sess%02d_run%02d.mat', ...
-    p.SUBJECT, p.SESSION, p.RUN);
+pattern = [baseName '*.mat'];
+existing = dir(fullfile(p.dataDir, pattern));
 
-outfile = fullfile(p.dataDir, filename);
+if ~isempty(existing)
 
-% if p.EYE_TRACKING
-%     p.et_fn = filename;
-% end
-
-if exist(outfile,'file')
-
-    warning('Data file already exists:\n%s', outfile);
+    warning('Data file already exists for this run.');
 
     choice = questdlg( ...
-        sprintf('File already exists:\n\n%s\n\nContinue anyway?', filename), ...
+        sprintf('Files already exist for:\n%s\n\nContinue anyway?', baseName), ...
         'Overwrite warning', ...
         'Stop experiment','Continue anyway','Stop experiment');
 
@@ -95,8 +96,39 @@ if exist(outfile,'file')
         fprintf('Experiment stopped to prevent overwrite.\n');
         return
     end
-
 end
+
+%% =========================================================
+% FINAL FILENAME WITH TIMESTAMP
+%% =========================================================
+
+p.baseName = sprintf('%s_%s', baseName, p.timestamp);
+filename = [p.baseName '.mat'];
+outfile = fullfile(p.dataDir, filename);
+
+%% =========================================================
+% EYELINK FILE NAME (MATCH MAT)
+%% =========================================================
+
+if p.EYE_TRACKING
+    p.et_fn = p.baseName;
+end
+
+% if exist(outfile,'file')
+% 
+%     warning('Data file already exists:\n%s', outfile);
+% 
+%     choice = questdlg( ...
+%         sprintf('File already exists:\n\n%s\n\nContinue anyway?', filename), ...
+%         'Overwrite warning', ...
+%         'Stop experiment','Continue anyway','Stop experiment');
+% 
+%     if strcmp(choice,'Stop experiment')
+%         fprintf('Experiment stopped to prevent overwrite.\n');
+%         return
+%     end
+% 
+% end
 
 %% =========================================================
 % LOAD SESSION DESIGN + TRIM TO RUN
@@ -145,21 +177,21 @@ end
 % ESTIMATED EXPERIMENT DURATION
 %% =========================================================
 p.trialDur = p.stimDur + p.ITI;      % duration of each trial
-p.expt_dur = p.start_wait ...
-           + sum(p.trialDur) ...
-           + p.end_wait;
+p.expt_dur = p.start_wait + sum(p.trialDur) + p.end_wait;
 fprintf('Estimated run duration: %.2f seconds (%.2f minutes)\n', ...
         p.expt_dur, p.expt_dur/60);
-    
     pause;
 
+%% =========================================================
+% START EXPERIMENT (CRASH PROTECTION)
+%% =========================================================
+try
 
 %% =========================================================
 % SCREEN SETUP
 %% =========================================================
 
 AssertOpenGL;
-
 screen = max(Screen('Screens'));
 p.bg_color = [127 127 127];
 [p.window, p.rect] = Screen('OpenWindow',screen,p.bg_color);
@@ -321,7 +353,7 @@ end
 %% =========================================================
 % TRIAL LOOP
 %% =========================================================
-
+autosave_file = fullfile(p.dataDir, [p.baseName '_AUTOSAVE.mat']);
 for trial = 1:p.ntrials
 
     t.trial_start(trial) = GetSecs;
@@ -401,8 +433,16 @@ for trial = 1:p.ntrials
     end
 
     t.trial_end(trial) = GetSecs;
+
+    % ---- autosave ---- in case things crash...
+    p.current_trial = trial;
+    % autosave_file = fullfile(p.dataDir, [p.baseName '_AUTOSAVE.mat']);
+    save(autosave_file,'p','t');
 end
 
+%% =========================================================
+% END WAIT
+%% =========================================================
 Screen('Flip',p.window);
 wait_start = GetSecs;
 
@@ -448,10 +488,13 @@ t.experiment_end = GetSecs;
 %% =========================================================
 % SAVE DATA
 %% =========================================================
-
-filename = sprintf('sub%03d_sess%02d_run%02d.mat',p.SUBJECT,p.SESSION,p.RUN);
 outfile = fullfile(p.dataDir, filename);
 save(outfile,'p','t');
+
+% optional: remove autosave after successful completion
+if exist(autosave_file, 'file')
+    delete(autosave_file);
+end
 
 % cleanup textures
 Screen('Close',p.tex(~isnan(p.tex)));
@@ -460,21 +503,35 @@ Screen('CloseAll');
 ShowCursor;
 Priority(0);
 
+catch ME
 
+    fprintf('\n\n******** EXPERIMENT CRASHED ********\n');
+    fprintf('%s\n', ME.message);
+
+    try
+        safe_abort_and_save(p,t);
+    catch
+        fprintf('Could not safely save crash data.\n');
+    end
+
+    Screen('CloseAll');
+    ShowCursor;
+    Priority(0);
+
+end
 
 
 
 %% =========================================================
 % LOCAL FUNCTIONS (keep at bottom of script)
 %% =========================================================
-
 function safe_abort_and_save(p,t)
     if ~isfield(p,'dataDir') || isempty(p.dataDir)
         p.dataDir = pwd;
     end
     if ~exist(p.dataDir,'dir'); mkdir(p.dataDir); end
 
-    filename = sprintf('sub%03d_sess%02d_run%02d_ABORTED.mat',p.SUBJECT,p.SESSION,p.RUN);
+    filename = [p.baseName '_ABORTED.mat'];
     outfile = fullfile(p.dataDir, filename);
 
     %% ===============================
@@ -518,7 +575,6 @@ function safe_abort_and_save(p,t)
     Screen('CloseAll');     % CLOSE SCREEN
     ShowCursor;
     Priority(0);
-
     fprintf('ESC pressed: saved %s\n', outfile);
 end
 
