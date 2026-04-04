@@ -1,0 +1,5 @@
+# ignore generated session files
+session_design_*.mat
+
+# keep this specific file
+!nsd_expdesign.mat
