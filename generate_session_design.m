@@ -5,7 +5,7 @@ function design = generate_session_design()
 %% =========================
 
 prompt = {'Subject ID'};
-default_ans = {'001'};
+default_ans = {'111'};
 
 box = inputdlg(prompt,'Generate session design',1,default_ans);
 
@@ -30,10 +30,42 @@ p.total_trials = p.runs * p.trials_per_run;
 p.easy_ratio = 0.10;
 p.hard_ratio = 0.10;
 
-% lag constraints
-p.easy_min_lag = 8;
-p.easy_max_lag = 20;
-p.hard_min_lag = 30;
+
+%% =========================
+% Calculating the numbers of easy and hard trials
+%% =========================
+% derive counts from total number of trials
+p.n_easy_images = round(p.easy_ratio * p.total_trials);   % number of easy-repeat images
+p.n_hard_images = round(p.hard_ratio * p.total_trials);   % number of hard-repeat images
+
+% % lag constraints (old algorithm)
+% p.easy_min_lag = 8;
+% p.easy_max_lag = 20;
+% p.hard_min_lag = 30;
+
+% total first-presented images:
+% every trial is either:
+%   1) a first presentation, or
+%   2) a repeat of an easy image, or
+%   3) a repeat of a hard image
+%
+% so first presentations = total trials - repeat trials
+p.n_first_presentations = p.total_trials - p.n_easy_images - p.n_hard_images;
+
+% among first-presented images, some are easy-repeat images and some are hard-repeat images
+p.n_once_images = p.n_first_presentations - p.n_easy_images - p.n_hard_images;
+
+if p.n_first_presentations <= 0
+    error('n_first_presentations must be positive.');
+end
+
+if p.n_once_images < 0
+    error('n_once_images is negative. Reduce easy_ratio/hard_ratio.');
+end
+
+if p.n_first_presentations + p.n_easy_images + p.n_hard_images ~= p.total_trials
+    error('Image design does not match total trials.');
+end
 
 
 %% =========================
@@ -179,7 +211,63 @@ end
 %% =========================
 
 ITI_pool = 4:8;
-ITI = ITI_pool(randi(length(ITI_pool),p.total_trials,1));
+
+n_iti_types = numel(ITI_pool);
+base_count = floor(p.trials_per_run / n_iti_types);
+remainder = mod(p.trials_per_run, n_iti_types);
+
+% Start with equal base counts
+iti_counts = base_count * ones(1, n_iti_types);
+
+% Distribute the leftover trials
+% Example: if remainder = 2, first two ITIs get +1
+iti_counts(1:remainder) = iti_counts(1:remainder) + 1;
+
+% Build per-run ITI template
+ITI_template_per_run = [];
+
+for i = 1:n_iti_types
+    ITI_template_per_run = [ITI_template_per_run, repmat(ITI_pool(i), 1, iti_counts(i))];
+end
+
+% Safety check
+if numel(ITI_template_per_run) ~= p.trials_per_run
+    error('ITI template length does not match p.trials_per_run.');
+end
+
+ITI_counts_per_run = iti_counts;
+
+%% =========================
+% GENERATE ITIs
+% randomized integers, same total duration per run
+%% =========================
+ITI_matrix = nan(p.runs, p.trials_per_run);
+
+for r = 1:p.runs
+    ITI_matrix(r,:) = ITI_template_per_run(randperm(p.trials_per_run));
+end
+
+ITI = reshape(ITI_matrix', [], 1);
+% ITI = ITI_pool(randi(length(ITI_pool),p.total_trials,1));
+
+%% =========================
+% VERIFY ITI PROPERTIES
+%% =========================
+
+ITI_run_sums = sum(ITI_matrix, 2);
+
+if numel(unique(ITI_run_sums)) ~= 1
+    error('ITI run totals are not identical.');
+end
+
+for r = 1:p.runs
+    for i = 1:numel(ITI_pool)
+        actual_count = sum(ITI_matrix(r,:) == ITI_pool(i));
+        if actual_count ~= ITI_counts_per_run(i)
+            error('Run %d has incorrect count for ITI=%d.', r, ITI_pool(i));
+        end
+    end
+end
 
 
 %% =========================

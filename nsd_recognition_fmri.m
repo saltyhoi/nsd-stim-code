@@ -22,7 +22,7 @@ p.RUN     = str2double(strtrim(box{3}));
 p.RNDSEED = str2double(strtrim(box{4}));
 p.DISPLAY = str2double(strtrim(box{5}));
 p.EYE_TRACKING = str2double(strtrim(box{6}));
-p.DEBUG = 1;   % 1 = fast testing, 0 = real experiment
+p.DEBUG = 0;   % 1 = fast testing, 0 = real experiment
 
 rng(p.RNDSEED);
 
@@ -575,7 +575,7 @@ function safe_abort_and_save(p,t)
     Screen('CloseAll');     % CLOSE SCREEN
     ShowCursor;
     Priority(0);
-    fprintf('ESC pressed: saved %s\n', outfile);
+    fprintf('Experiment aborted: saved %s\n', outfile);
 end
 
 function [resp, ts] = checkForResp(possResp, escapeKey)
