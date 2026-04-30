@@ -22,7 +22,7 @@ p.RUN     = str2double(strtrim(box{3}));
 p.RNDSEED = str2double(strtrim(box{4}));
 p.DISPLAY = str2double(strtrim(box{5}));
 p.EYE_TRACKING = str2double(strtrim(box{6}));
-p.DEBUG = 1;   % 1 = fast testing, 0 = real experiment
+p.DEBUG = 0;   % 1 = fast testing, 0 = real experiment
 
 rng(p.RNDSEED);
 
@@ -111,7 +111,11 @@ outfile = fullfile(p.dataDir, filename);
 %% =========================================================
 
 if p.EYE_TRACKING
-    p.et_fn = p.baseName;
+    % Short filename used on EyeLink Host computer
+    p.et_fn_tracker = sprintf('S%03dR%02d', p.SUBJECT, p.RUN);
+
+    % Full descriptive filename saved locally
+    p.et_fn_local = [p.baseName '.edf'];
 end
 
 % if exist(outfile,'file')
@@ -216,7 +220,12 @@ if p.EYE_TRACKING
     Eyelink('command','screen_pixel_coords=%ld %ld %ld %ld',0,0,p.rect(3)-1,p.rect(4)-1);
     Eyelink('message','DISPLAY_COORDS %ld %ld %ld %ld',0,0,p.rect(3)-1,p.rect(4)-1);
     EyelinkDoTrackerSetup(el);
-    Eyelink('openfile',p.et_fn);
+    % Eyelink('openfile',p.et_fn);
+    Eyelink('OpenFile', p.et_fn_tracker);
+    % status = Eyelink('OpenFile', p.et_fn_tracker);
+    % if status ~= 0
+    %     error('EyeLink file open failed');
+    % end
 end
 
 HideCursor;
@@ -540,7 +549,8 @@ if p.EYE_TRACKING
     Eyelink('CloseFile');
 
     try
-        Eyelink('ReceiveFile',[p.et_fn '.edf'], fullfile(p.dataDir,[p.et_fn '.edf']));
+        % Eyelink('ReceiveFile',[p.et_fn '.edf'], fullfile(p.dataDir,[p.et_fn '.edf']));
+        Eyelink('ReceiveFile', [p.et_fn_tracker '.edf'], fullfile(p.dataDir, p.et_fn_local));
     catch
         fprintf('Problem receiving EDF file.\n');
     end
@@ -614,8 +624,8 @@ function safe_abort_and_save(p,t)
         end
 
         try
-            Eyelink('ReceiveFile',[p.et_fn '.edf'], ...
-                fullfile(p.dataDir,[p.et_fn '_ABORTED.edf']));
+            % Eyelink('ReceiveFile',[p.et_fn '.edf'], fullfile(p.dataDir,[p.et_fn '_ABORTED.edf']));
+            Eyelink('ReceiveFile', [p.et_fn_tracker '.edf'], fullfile(p.dataDir, [p.baseName '_ABORTED.edf']));
         catch
             fprintf('Could not retrieve EDF file.\n');
         end
