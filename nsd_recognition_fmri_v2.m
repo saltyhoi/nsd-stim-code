@@ -8,7 +8,7 @@ KbName('UnifyKeyNames');
 %% =========================================================
 prompt = {'Subject ID','Session','Run','Random Seed','Display (1=fMRI,2=behavior)','Eye tracking (1=yes,0=no)'};
 
-default_ans = {'001','1','1',num2str(round(sum(100*clock))),'1','0'};
+default_ans = {'044','2','1',num2str(round(sum(100*clock))),'1','1'};
 
 box = inputdlg(prompt,'Enter subject information',1,default_ans);
 if isempty(box); return; end
@@ -21,6 +21,10 @@ p.SESSION = str2double(strtrim(box{2}));
 p.RUN     = str2double(strtrim(box{3}));
 p.RNDSEED = str2double(strtrim(box{4}));
 p.DISPLAY = str2double(strtrim(box{5}));
+
+
+
+
 p.EYE_TRACKING = str2double(strtrim(box{6}));
 p.DEBUG = 0;   % 1 = fast testing, 0 = real experiment
 
@@ -111,11 +115,10 @@ outfile = fullfile(p.dataDir, filename);
 %% =========================================================
 
 if p.EYE_TRACKING
-    % Short filename used on EyeLink Host computer
+%     p.et_fn = p.baseName;
+%     p.et_fn = sprintf('S%03dR%02d', p.SUBJECT, p.RUN);
     p.et_fn_tracker = sprintf('S%03dR%02d', p.SUBJECT, p.RUN);
-
-    % Full descriptive filename saved locally
-    p.et_fn_local = [p.baseName '.edf'];
+    p.et_fn_local   = [p.baseName '.edf'];
 end
 
 % if exist(outfile,'file')
@@ -183,9 +186,9 @@ end
 %% =========================================================
 p.trialDur = p.stimDur + p.ITI;      % duration of each trial
 p.expt_dur = p.start_wait + sum(p.trialDur) + p.end_wait;
-fprintf('Estimated run duration: %.2f seconds (%.2f minutes)\n', ...
-        p.expt_dur, p.expt_dur/60);
-    pause;
+% fprintf('Estimated run duration: %.2f seconds (%.2f minutes)\n', ...
+%         p.expt_dur, p.expt_dur/60);
+%     pause;
 
 %% =========================================================
 % START EXPERIMENT (CRASH PROTECTION)
@@ -220,12 +223,12 @@ if p.EYE_TRACKING
     Eyelink('command','screen_pixel_coords=%ld %ld %ld %ld',0,0,p.rect(3)-1,p.rect(4)-1);
     Eyelink('message','DISPLAY_COORDS %ld %ld %ld %ld',0,0,p.rect(3)-1,p.rect(4)-1);
     EyelinkDoTrackerSetup(el);
-    % Eyelink('openfile',p.et_fn);
+%     Eyelink('openfile',p.et_fn);
     Eyelink('OpenFile', p.et_fn_tracker);
-    % status = Eyelink('OpenFile', p.et_fn_tracker);
-    % if status ~= 0
-    %     error('EyeLink file open failed');
-    % end
+%     status = Eyelink('OpenFile', p.et_fn);
+%     if status ~= 0
+%         error('EyeLink file open failed');
+%     end
 end
 
 HideCursor;
@@ -460,7 +463,7 @@ for trial = 1:p.ntrials
                 fprintf('  Trial %d | Button: %s | Correct: %s | RT: %.0f ms\n', ...
                     trial, buttonLabel, string(isCorrectNow), p.RT(trial));
 
-                KbReleaseWait(-1);
+%                 KbReleaseWait(-1);
             end
         end
     end
@@ -547,10 +550,9 @@ if p.EYE_TRACKING
     Eyelink('Message','xDAT %i',0);   % experiment end
     Eyelink('StopRecording');
     Eyelink('CloseFile');
-
     try
-        % Eyelink('ReceiveFile',[p.et_fn '.edf'], fullfile(p.dataDir,[p.et_fn '.edf']));
-        Eyelink('ReceiveFile', [p.et_fn_tracker '.edf'], fullfile(p.dataDir, p.et_fn_local));
+          Eyelink('ReceiveFile', [p.et_fn_tracker '.edf'], fullfile(p.dataDir, p.et_fn_local));
+%         Eyelink('ReceiveFile',[p.et_fn '.edf'], fullfile(p.dataDir,[p.et_fn '.edf']));
     catch
         fprintf('Problem receiving EDF file.\n');
     end
@@ -624,8 +626,8 @@ function safe_abort_and_save(p,t)
         end
 
         try
-            % Eyelink('ReceiveFile',[p.et_fn '.edf'], fullfile(p.dataDir,[p.et_fn '_ABORTED.edf']));
-            Eyelink('ReceiveFile', [p.et_fn_tracker '.edf'], fullfile(p.dataDir, [p.baseName '_ABORTED.edf']));
+%             Eyelink('ReceiveFile',[p.et_fn '.edf'], fullfile(p.dataDir,[p.et_fn '_ABORTED.edf']));
+            Eyelink('ReceiveFile', [p.et_fn_tracker '.edf'], fullfile(p.dataDir, p.et_fn_local));
         catch
             fprintf('Could not retrieve EDF file.\n');
         end
